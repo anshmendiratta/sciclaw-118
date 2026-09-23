@@ -329,7 +329,7 @@ func (c *DiscordChannel) Send(ctx context.Context, msg bus.OutboundMessage) erro
 		return fmt.Errorf("channel ID is empty")
 	}
 
-	message := msg.Content
+	message := discordOutboundContent(msg)
 	if strings.TrimSpace(message) == "" {
 		message = "[empty message]"
 	}
@@ -363,6 +363,15 @@ func (c *DiscordChannel) Send(ctx context.Context, msg bus.OutboundMessage) erro
 	case <-sendCtx.Done():
 		return fmt.Errorf("send message timeout: %w", sendCtx.Err())
 	}
+}
+
+func discordOutboundContent(msg bus.OutboundMessage) string {
+	content := msg.Content
+	if msg.Error == nil || strings.TrimSpace(msg.Error.TechnicalDetails) == "" {
+		return content
+	}
+	details := strings.ReplaceAll(msg.Error.TechnicalDetails, "||", "|")
+	return content + "\n\nTechnical details: ||" + details + "||"
 }
 
 func (c *DiscordChannel) SendOrEditProgress(ctx context.Context, chatID, messageID string, msg bus.OutboundMessage) (string, error) {

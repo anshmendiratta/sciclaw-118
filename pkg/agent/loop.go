@@ -561,9 +561,10 @@ func (al *AgentLoop) Stop() {
 // It is used both by the default bus consumer loop and routed dispatchers.
 func (al *AgentLoop) HandleInbound(ctx context.Context, msg bus.InboundMessage) {
 	response, media, err := al.processMessageWithMedia(ctx, msg, nil)
+	var outboundError *bus.OutboundError
 	if err != nil && strings.TrimSpace(response) == "" {
-		if uerr, ok := err.(userVisibleError); ok && strings.TrimSpace(uerr.UserMessage()) != "" {
-			response = uerr.UserMessage()
+		if userMessage, presentation, ok := UserError(err); ok {
+			response, outboundError = userMessage, presentation
 		} else {
 			response = fmt.Sprintf("Error processing message: %v", err)
 		}
@@ -579,19 +580,20 @@ func (al *AgentLoop) HandleInbound(ctx context.Context, msg bus.InboundMessage) 
 			})
 	}
 
-	al.publishFinalResponseWithMedia(ctx, msg, response, media)
+	al.publishFinalResponseWithError(ctx, msg, response, media, outboundError)
 }
 
 func (al *AgentLoop) RunJob(ctx context.Context, msg bus.InboundMessage, onProgress func(phase, detail string)) (string, error) {
 	response, media, err := al.processMessageWithMedia(ctx, msg, onProgress)
+	var outboundError *bus.OutboundError
 	if err != nil && strings.TrimSpace(response) == "" {
-		if uerr, ok := err.(userVisibleError); ok && strings.TrimSpace(uerr.UserMessage()) != "" {
-			response = uerr.UserMessage()
+		if userMessage, presentation, ok := UserError(err); ok {
+			response, outboundError = userMessage, presentation
 		} else {
 			response = fmt.Sprintf("Error processing message: %v", err)
 		}
 	}
-	al.publishFinalResponseWithMedia(ctx, msg, response, media)
+	al.publishFinalResponseWithError(ctx, msg, response, media, outboundError)
 	return response, err
 }
 
@@ -600,6 +602,10 @@ func (al *AgentLoop) publishFinalResponse(ctx context.Context, msg bus.InboundMe
 }
 
 func (al *AgentLoop) publishFinalResponseWithMedia(ctx context.Context, msg bus.InboundMessage, response string, media []bus.OutboundAttachment) {
+	al.publishFinalResponseWithError(ctx, msg, response, media, nil)
+}
+
+func (al *AgentLoop) publishFinalResponseWithError(ctx context.Context, msg bus.InboundMessage, response string, media []bus.OutboundAttachment, outboundError *bus.OutboundError) {
 	if response == "" && len(media) == 0 {
 		if msg.Channel != "system" {
 			logger.InfoCF("agent", "No outbound response generated",
@@ -632,6 +638,7 @@ func (al *AgentLoop) publishFinalResponseWithMedia(ctx context.Context, msg bus.
 			ChatID:      msg.ChatID,
 			Content:     content,
 			Attachments: media,
+			Error:       outboundError,
 		})
 	} else {
 		logger.InfoCF("agent", "Suppressing outbound response because message tool already sent content",
@@ -1447,20 +1454,23 @@ func (al *AgentLoop) runLLMIteration(ctx context.Context, messages []providers.M
 		response, err := al.provider.Chat(ctx, messages, providerToolDefs, al.model, llmOpts)
 
 		if err != nil {
+			referenceID := providerErrorReference(opts.TurnID)
 			if localDiag != nil {
 				localDiag.recordFailure("provider_chat", err.Error())
 			}
 			logger.ErrorCF("agent", "LLM call failed",
 				map[string]interface{}{
-					"iteration":   iteration,
-					"error":       err.Error(),
-					"duration":    time.Since(llmCallStartedAt).String(),
-					"duration_ms": time.Since(llmCallStartedAt).Milliseconds(),
+					"iteration":       iteration,
+					"turn_id":         opts.TurnID,
+					"error_reference": referenceID,
+					"error":           err.Error(),
+					"duration":        time.Since(llmCallStartedAt).String(),
+					"duration_ms":     time.Since(llmCallStartedAt).Milliseconds(),
 				})
 			return llmIterationResult{
 				Iterations: iteration,
 				Usage:      usage,
-			}, fmt.Errorf("LLM call failed: %w", err)
+			}, newProviderFailureError(fmt.Errorf("LLM call failed: %w", err), referenceID)
 		}
 		if localDiag != nil {
 			localDiag.recordLLMResponse(time.Since(llmCallStartedAt), response)

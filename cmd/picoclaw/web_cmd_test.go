@@ -113,6 +113,29 @@ func TestHandleChatSuppressesAgentStderr(t *testing.T) {
 	}
 }
 
+func TestHandleChatReturnsStructuredSafeError(t *testing.T) {
+	execStub := &webTestExec{output: `{"response":"The AI service is busy.\n\nReference ID: ` + "`ERR-123`" + `","error":{"technical_details":"The provider rate-limited this request.\nStatus: 429","reference_id":"ERR-123"}}`, err: os.ErrDeadlineExceeded}
+	srv := newWebServer(execStub, "")
+
+	req := httptest.NewRequest(http.MethodPost, "/api/chat", strings.NewReader(`{"message":"hello"}`))
+	rec := httptest.NewRecorder()
+	srv.handleChat(rec, req)
+
+	var body struct {
+		Response string `json:"response"`
+		Error    struct {
+			TechnicalDetails string `json:"technical_details"`
+			ReferenceID      string `json:"reference_id"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !strings.Contains(body.Response, "ERR-123") || body.Error.ReferenceID != "ERR-123" || !strings.Contains(body.Error.TechnicalDetails, "Status: 429") {
+		t.Fatalf("unexpected response: %#v", body)
+	}
+}
+
 func TestHandleChatUsesLitePathForGreeting(t *testing.T) {
 	execStub := &webTestExec{}
 	srv := newWebServer(execStub, "")

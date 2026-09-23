@@ -75,6 +75,11 @@ const primaryCLIName = "sciclaw"
 
 const docsURLBase = "https://drpedapati.github.io/sciclaw/docs.html"
 
+type agentDirectResult struct {
+	Response string             `json:"response"`
+	Error    *bus.OutboundError `json:"error,omitempty"`
+}
+
 var baselineScienceSkillNames = []string{
 	"scientific-writing",
 	"pubmed-cli",
@@ -1245,6 +1250,7 @@ func agentCmd() {
 	sessionKey := "cli:default"
 	modelOverride := ""
 	effortOverride := ""
+	jsonOutput := false
 
 	args := os.Args[2:]
 	for i := 0; i < len(args); i++ {
@@ -1272,6 +1278,13 @@ func agentCmd() {
 				effortOverride = args[i+1]
 				i++
 			}
+		case "--json":
+			jsonOutput = true
+		}
+	}
+	if jsonOutput {
+		if home, err := os.UserHomeDir(); err == nil {
+			_ = logger.EnableFileLogging(filepath.Join(home, ".picoclaw", "web.log"))
 		}
 	}
 
@@ -1304,6 +1317,13 @@ func agentCmd() {
 	if message != "" {
 		ctx := context.Background()
 		response, err := agentLoop.ProcessDirect(ctx, message, sessionKey)
+		if jsonOutput {
+			printAgentDirectJSON(response, err)
+			if err != nil {
+				os.Exit(agentDirectExitCode(err))
+			}
+			return
+		}
 		printAgentDirectResult(logo, response, err)
 		if err != nil {
 			os.Exit(agentDirectExitCode(err))
@@ -1313,6 +1333,17 @@ func agentCmd() {
 		fmt.Printf("%s Interactive mode (Ctrl+C to exit)\n\n", logo)
 		interactiveMode(agentLoop, sessionKey)
 	}
+}
+
+func printAgentDirectJSON(response string, err error) {
+	result := agentDirectResult{Response: response}
+	if userMessage, userError, ok := agent.UserError(err); ok {
+		result.Response = userMessage
+		result.Error = userError
+	} else if err != nil {
+		result.Response = "The request could not be completed. Please try again, then contact an administrator if it continues."
+	}
+	_ = json.NewEncoder(os.Stdout).Encode(result)
 }
 
 func applyAgentCLIOverrides(cfg *config.Config, modelOverride, effortOverride string) {

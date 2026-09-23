@@ -50,6 +50,16 @@ func TestNormalizeDiscordBotToken(t *testing.T) {
 	}
 }
 
+func TestDiscordOutboundContentHidesTechnicalDetails(t *testing.T) {
+	content := discordOutboundContent(bus.OutboundMessage{
+		Content: "The AI service is busy.",
+		Error:   &bus.OutboundError{TechnicalDetails: "Status: 429\nCode: rate_limit"},
+	})
+	if !strings.Contains(content, "||Status: 429") || !strings.HasSuffix(content, "rate_limit||") {
+		t.Fatalf("technical details were not spoilered: %q", content)
+	}
+}
+
 func TestDiscordTypingStopsOnFirstReply(t *testing.T) {
 	ch := newTestDiscordChannel()
 	var mu sync.Mutex
