@@ -10,7 +10,7 @@ Ready for review.
 - Worktree: `/Users/menzy3/projects/sciclaw-provider-errors`.
 - Branch: `codex/safe-provider-errors`.
 - Base: `origin/main` at `eb557d5d9f98422ab9c4a54d8013d20dfb006288`.
-- Head: `a95ad32` (`fix: sanitize provider errors for users`).
+- Head: `7b5254c` (`docs: record provider error review packet`).
 - Verification: `go test ./...` and `git diff --check` passed.
 - Excluded: custom web-client toggle rendering, provider retries, and changes
   to non-provider failures.
