@@ -570,14 +570,19 @@ func (al *AgentLoop) HandleInbound(ctx context.Context, msg bus.InboundMessage) 
 		}
 	}
 	if err != nil && strings.TrimSpace(response) != "" {
+		_, outboundError, _ := UserError(err)
+		logFields := map[string]interface{}{
+			"channel":     msg.Channel,
+			"chat_id":     msg.ChatID,
+			"sender_id":   msg.SenderID,
+			"session_key": msg.SessionKey,
+			"error":       err.Error(),
+		}
+		if outboundError != nil {
+			logFields["error_reference"] = outboundError.ReferenceID
+		}
 		logger.WarnCF("agent", "Publishing user-visible response for incomplete/failed turn",
-			map[string]interface{}{
-				"channel":     msg.Channel,
-				"chat_id":     msg.ChatID,
-				"sender_id":   msg.SenderID,
-				"session_key": msg.SessionKey,
-				"error":       err.Error(),
-			})
+			logFields)
 	}
 
 	al.publishFinalResponseWithError(ctx, msg, response, media, outboundError)

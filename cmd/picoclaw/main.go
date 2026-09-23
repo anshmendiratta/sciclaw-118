@@ -169,7 +169,7 @@ func main() {
 	}
 
 	command := os.Args[1]
-	if shouldOfferConfigHealthRepair(command) {
+	if shouldOfferConfigHealthRepair(command) && !(command == "agent" && hasArgument(os.Args[2:], "--json")) {
 		if err := maybeOfferConfigHealthRepair(); err != nil {
 			fmt.Printf("Warning: config health check failed: %v\n", err)
 		}
@@ -273,6 +273,15 @@ func main() {
 		printHelp()
 		os.Exit(1)
 	}
+}
+
+func hasArgument(args []string, target string) bool {
+	for _, arg := range args {
+		if arg == target {
+			return true
+		}
+	}
+	return false
 }
 
 func shouldOfferConfigHealthRepair(command string) bool {
@@ -1251,13 +1260,14 @@ func agentCmd() {
 	modelOverride := ""
 	effortOverride := ""
 	jsonOutput := false
+	debugOutput := false
 
 	args := os.Args[2:]
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--debug", "-d":
 			logger.SetLevel(logger.DEBUG)
-			fmt.Println("🔍 Debug mode enabled")
+			debugOutput = true
 		case "-m", "--message":
 			if i+1 < len(args) {
 				message = args[i+1]
@@ -1286,11 +1296,13 @@ func agentCmd() {
 		if home, err := os.UserHomeDir(); err == nil {
 			_ = logger.EnableFileLogging(filepath.Join(home, ".picoclaw", "web.log"))
 		}
+	} else if debugOutput {
+		fmt.Println("🔍 Debug mode enabled")
 	}
 
 	cfg, err := loadConfig()
 	if err != nil {
-		fmt.Printf("Error loading config: %v\n", err)
+		printAgentStartupFailure(jsonOutput, err)
 		os.Exit(1)
 	}
 
@@ -1298,7 +1310,7 @@ func agentCmd() {
 
 	provider, err := providers.CreateProvider(cfg)
 	if err != nil {
-		fmt.Printf("Error creating provider: %v\n", err)
+		printAgentStartupFailure(jsonOutput, err)
 		os.Exit(1)
 	}
 
@@ -1329,10 +1341,26 @@ func agentCmd() {
 			os.Exit(agentDirectExitCode(err))
 		}
 		return
-	} else {
-		fmt.Printf("%s Interactive mode (Ctrl+C to exit)\n\n", logo)
-		interactiveMode(agentLoop, sessionKey)
 	}
+	if jsonOutput {
+		printAgentStartupFailure(true, errors.New("agent direct mode requires -m or --message"))
+		os.Exit(1)
+	}
+	fmt.Printf("%s Interactive mode (Ctrl+C to exit)\n\n", logo)
+	interactiveMode(agentLoop, sessionKey)
+}
+
+func printAgentStartupFailure(jsonOutput bool, err error) {
+	logger.ErrorCF("agent", "agent_startup_failed", map[string]interface{}{"error": err.Error()})
+	if jsonOutput {
+		printAgentDirectJSON("", err)
+		return
+	}
+	if message, _, ok := agent.UserError(err); ok {
+		fmt.Printf("\n%s %s\n\n", logo, message)
+		return
+	}
+	fmt.Printf("\n%s The agent could not start. Please contact an administrator.\n\n", logo)
 }
 
 func printAgentDirectJSON(response string, err error) {
@@ -1446,6 +1474,10 @@ func printAgentDirectResult(logo, response string, err error) {
 		return
 	}
 	if agent.IsIncompleteTurn(err) && strings.TrimSpace(response) != "" {
+		return
+	}
+	if message, _, ok := agent.UserError(err); ok {
+		fmt.Printf("%s\n", message)
 		return
 	}
 	fmt.Printf("Error: %v\n", err)

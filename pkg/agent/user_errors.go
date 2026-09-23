@@ -10,9 +10,9 @@ import (
 )
 
 type providerFailureError struct {
-	cause   error
-	error   bus.OutboundError
-	message string
+	cause    error
+	outbound bus.OutboundError
+	message  string
 }
 
 func (e *providerFailureError) Error() string       { return e.cause.Error() }
@@ -24,7 +24,7 @@ func newProviderFailureError(cause error, referenceID string) error {
 	return &providerFailureError{
 		cause:   cause,
 		message: message + "\n\nReference ID: `" + referenceID + "`",
-		error: bus.OutboundError{
+		outbound: bus.OutboundError{
 			TechnicalDetails: details,
 			ReferenceID:      referenceID,
 		},
@@ -39,7 +39,7 @@ func providerErrorReference(turnID string) string {
 func UserError(err error) (string, *bus.OutboundError, bool) {
 	var providerErr *providerFailureError
 	if errors.As(err, &providerErr) {
-		return providerErr.message, &providerErr.error, true
+		return providerErr.message, &providerErr.outbound, true
 	}
 	var visible userVisibleError
 	if errors.As(err, &visible) && strings.TrimSpace(visible.UserMessage()) != "" {
@@ -63,10 +63,10 @@ func classifyProviderFailure(err error) (string, string) {
 		message, detail = "The AI service has reached its usage limit. Please contact an administrator.", "The provider rejected the request because of an account usage limit."
 	case status == 429 || containsAny(lower, "rate limit", "rate_limit"):
 		message, detail = "The AI service is busy. Please wait a moment and try again.", "The provider rate-limited this request."
-	case status == 400 && containsAny(lower, "model", "not supported", "not available"):
-		message, detail = "The selected AI model is not available. Choose another model or contact an administrator.", "The provider rejected the selected model."
-	case status == 400 && containsAny(lower, "context length", "maximum context", "too many tokens"):
+	case containsAny(code, "context_length", "context_window", "max_context", "too_many_tokens") || containsAny(lower, "context length", "maximum context", "too many tokens"):
 		message, detail = "This conversation is too long for the selected AI model. Start a new conversation or shorten your request.", "The provider rejected the request because it exceeds the model context limit."
+	case status == 400 && containsAny(lower, "model", "not supported", "not available") || status == 404 && isModelNotFound(code, lower):
+		message, detail = "The selected AI model is not available. Choose another model or contact an administrator.", "The provider rejected the selected model."
 	case status >= 500 || containsAny(lower, "timeout", "deadline exceeded", "temporarily unavailable"):
 		message, detail = "The AI service is temporarily unavailable. Please try again shortly.", "The provider or network did not complete the request."
 	}
@@ -74,13 +74,12 @@ func classifyProviderFailure(err error) (string, string) {
 	if status != 0 {
 		technical = append(technical, fmt.Sprintf("Status: %d", status))
 	}
-	if code != "" {
-		technical = append(technical, "Code: "+code)
-	}
-	if apiErr != nil && strings.TrimSpace(apiErr.RequestID) != "" {
-		technical = append(technical, "Provider request ID: "+apiErr.RequestID)
-	}
 	return message, strings.Join(technical, "\n")
+}
+
+func isModelNotFound(code, message string) bool {
+	return containsAny(code, "model_not_found", "model_not_available", "model_not_supported", "unknown_model") ||
+		strings.Contains(message, "model") && containsAny(message, "not found", "does not exist")
 }
 
 func containsAny(value string, candidates ...string) bool {

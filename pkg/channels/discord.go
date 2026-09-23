@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -370,8 +371,25 @@ func discordOutboundContent(msg bus.OutboundMessage) string {
 	if msg.Error == nil || strings.TrimSpace(msg.Error.TechnicalDetails) == "" {
 		return content
 	}
-	details := strings.ReplaceAll(msg.Error.TechnicalDetails, "||", "|")
+	details := discordTechnicalDetails(msg.Error.TechnicalDetails)
+	if details == "" {
+		return content
+	}
 	return content + "\n\nTechnical details: ||" + details + "||"
+}
+
+func discordTechnicalDetails(details string) string {
+	var safe []string
+	for _, detail := range strings.Split(details, "\n") {
+		detail = strings.TrimSpace(detail)
+		switch {
+		case strings.HasPrefix(detail, "Status: "):
+			if status, err := strconv.Atoi(strings.TrimPrefix(detail, "Status: ")); err == nil && status >= 100 && status <= 599 {
+				safe = append(safe, fmt.Sprintf("Status: %d", status))
+			}
+		}
+	}
+	return strings.Join(safe, "\n")
 }
 
 func (c *DiscordChannel) SendOrEditProgress(ctx context.Context, chatID, messageID string, msg bus.OutboundMessage) (string, error) {

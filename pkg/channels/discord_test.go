@@ -50,13 +50,17 @@ func TestNormalizeDiscordBotToken(t *testing.T) {
 	}
 }
 
-func TestDiscordOutboundContentHidesTechnicalDetails(t *testing.T) {
+func TestDiscordOutboundContentOmitsRawTechnicalDetails(t *testing.T) {
+	const rawCanary = "RAW_CANARY_discord_render_5a72"
 	content := discordOutboundContent(bus.OutboundMessage{
 		Content: "The AI service is busy.",
-		Error:   &bus.OutboundError{TechnicalDetails: "Status: 429\nCode: rate_limit"},
+		Error:   &bus.OutboundError{TechnicalDetails: "Status: 429\nCode: " + rawCanary + "\nProvider request ID: https://" + rawCanary},
 	})
-	if !strings.Contains(content, "||Status: 429") || !strings.HasSuffix(content, "rate_limit||") {
-		t.Fatalf("technical details were not spoilered: %q", content)
+	if strings.Contains(content, rawCanary) {
+		t.Fatalf("raw technical details leaked into Discord content: %q", content)
+	}
+	if !strings.Contains(content, "||Status: 429||") {
+		t.Fatalf("expected allowlisted status detail: %q", content)
 	}
 }
 

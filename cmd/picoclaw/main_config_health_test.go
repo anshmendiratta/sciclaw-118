@@ -25,6 +25,15 @@ func TestShouldOfferConfigHealthRepair(t *testing.T) {
 	}
 }
 
+func TestAgentJSONSkipsConfigHealthRepair(t *testing.T) {
+	if !shouldOfferConfigHealthRepair("agent") {
+		t.Fatal("agent should normally offer config health repair")
+	}
+	if !hasArgument([]string{"--json", "-m", "hello"}, "--json") {
+		t.Fatal("expected JSON argument to be recognized")
+	}
+}
+
 func TestRoutingMentionMismatchIndexes(t *testing.T) {
 	f := false
 	cfg := config.DefaultConfig()

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -133,6 +134,19 @@ func TestHandleChatReturnsStructuredSafeError(t *testing.T) {
 	}
 	if !strings.Contains(body.Response, "ERR-123") || body.Error.ReferenceID != "ERR-123" || !strings.Contains(body.Error.TechnicalDetails, "Status: 429") {
 		t.Fatalf("unexpected response: %#v", body)
+	}
+}
+
+func TestHandleChatExcludesExecutorRawError(t *testing.T) {
+	const rawCanary = "RAW_CANARY_web_executor_91be"
+	srv := newWebServer(&webTestExec{output: rawCanary, err: errors.New(rawCanary)}, "")
+
+	req := httptest.NewRequest(http.MethodPost, "/api/chat", strings.NewReader(`{"message":"summarize this"}`))
+	rec := httptest.NewRecorder()
+	srv.handleChat(rec, req)
+
+	if strings.Contains(rec.Body.String(), rawCanary) {
+		t.Fatalf("executor error leaked in web response: %q", rec.Body.String())
 	}
 }
 
