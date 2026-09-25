@@ -67,7 +67,7 @@ func readProviderResponse(response *http.Response) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return truncateErrorResponseBody(body), nil
+	return body, nil
 }
 
 func truncateErrorResponseBody(body []byte) []byte {

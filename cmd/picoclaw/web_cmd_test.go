@@ -89,6 +89,7 @@ func (e *webTestExec) InteractiveProcess(_ ...string) *exec.Cmd { return exec.Co
 func TestHandleChatSuppressesAgentStderr(t *testing.T) {
 	execStub := &webTestExec{output: "hello"}
 	srv := newWebServer(execStub, "")
+	srv.liteChatRunner = func(context.Context, string) (*liteChatResult, error) { return nil, errors.New("unavailable") }
 
 	req := httptest.NewRequest(http.MethodPost, "/api/chat", strings.NewReader(`{"message":"hello"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -117,6 +118,7 @@ func TestHandleChatSuppressesAgentStderr(t *testing.T) {
 func TestHandleChatReturnsStructuredSafeError(t *testing.T) {
 	execStub := &webTestExec{output: `{"response":"The AI service is busy.\n\nReference ID: ` + "`ERR-123`" + `","error":{"technical_details":"The provider rate-limited this request.\nStatus: 429","reference_id":"ERR-123"}}`, err: os.ErrDeadlineExceeded}
 	srv := newWebServer(execStub, "")
+	srv.liteChatRunner = func(context.Context, string) (*liteChatResult, error) { return nil, errors.New("unavailable") }
 
 	req := httptest.NewRequest(http.MethodPost, "/api/chat", strings.NewReader(`{"message":"hello"}`))
 	rec := httptest.NewRecorder()

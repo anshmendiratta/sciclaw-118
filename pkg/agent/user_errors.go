@@ -15,9 +15,8 @@ type providerFailureError struct {
 	message  string
 }
 
-func (e *providerFailureError) Error() string       { return e.cause.Error() }
-func (e *providerFailureError) Unwrap() error       { return e.cause }
-func (e *providerFailureError) UserMessage() string { return e.message }
+func (e *providerFailureError) Error() string { return e.cause.Error() }
+func (e *providerFailureError) Unwrap() error { return e.cause }
 
 func newProviderFailureError(cause error, referenceID string) error {
 	message, details := classifyProviderFailure(cause)
@@ -29,10 +28,6 @@ func newProviderFailureError(cause error, referenceID string) error {
 			ReferenceID:      referenceID,
 		},
 	}
-}
-
-func providerErrorReference(turnID string) string {
-	return "ERR-" + strings.TrimPrefix(turnID, "turn-")
 }
 
 // UserError returns the safe presentation attached to an error, if any.

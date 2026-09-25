@@ -18,6 +18,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -169,7 +170,7 @@ func main() {
 	}
 
 	command := os.Args[1]
-	if shouldOfferConfigHealthRepair(command) && !(command == "agent" && hasArgument(os.Args[2:], "--json")) {
+	if shouldOfferConfigHealthRepair(command) && !(command == "agent" && slices.Contains(os.Args[2:], "--json")) {
 		if err := maybeOfferConfigHealthRepair(); err != nil {
 			fmt.Printf("Warning: config health check failed: %v\n", err)
 		}
@@ -273,15 +274,6 @@ func main() {
 		printHelp()
 		os.Exit(1)
 	}
-}
-
-func hasArgument(args []string, target string) bool {
-	for _, arg := range args {
-		if arg == target {
-			return true
-		}
-	}
-	return false
 }
 
 func shouldOfferConfigHealthRepair(command string) bool {

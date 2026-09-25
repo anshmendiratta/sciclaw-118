@@ -602,14 +602,6 @@ func (al *AgentLoop) RunJob(ctx context.Context, msg bus.InboundMessage, onProgr
 	return response, err
 }
 
-func (al *AgentLoop) publishFinalResponse(ctx context.Context, msg bus.InboundMessage, response string) {
-	al.publishFinalResponseWithMedia(ctx, msg, response, nil)
-}
-
-func (al *AgentLoop) publishFinalResponseWithMedia(ctx context.Context, msg bus.InboundMessage, response string, media []bus.OutboundAttachment) {
-	al.publishFinalResponseWithError(ctx, msg, response, media, nil)
-}
-
 func (al *AgentLoop) publishFinalResponseWithError(ctx context.Context, msg bus.InboundMessage, response string, media []bus.OutboundAttachment, outboundError *bus.OutboundError) {
 	if response == "" && len(media) == 0 {
 		if msg.Channel != "system" {
@@ -1459,7 +1451,7 @@ func (al *AgentLoop) runLLMIteration(ctx context.Context, messages []providers.M
 		response, err := al.provider.Chat(ctx, messages, providerToolDefs, al.model, llmOpts)
 
 		if err != nil {
-			referenceID := providerErrorReference(opts.TurnID)
+			referenceID := "ERR-" + strings.TrimPrefix(opts.TurnID, "turn-")
 			if localDiag != nil {
 				localDiag.recordFailure("provider_chat", err.Error())
 			}

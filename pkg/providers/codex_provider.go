@@ -134,30 +134,26 @@ func (p *CodexProvider) Chat(ctx context.Context, messages []Message, tools []To
 				message += fmt.Sprintf(" (param=%s)", event.Param)
 			}
 			cause := fmt.Errorf("response error (%s): %s", event.Code, message)
-			return nil, &APIError{
-				Provider: "Codex",
-				Code:     event.Code,
-				Message:  message,
-				Body:     string(truncateErrorResponseBody([]byte(event.RawJSON()))),
-				cause:    cause,
-			}
+			apiErr := newAPIError("Codex", nil, []byte(event.RawJSON()), cause)
+			apiErr.Code, apiErr.Message = event.Code, message
+			return nil, apiErr
 		case responses.ResponseFailedEvent:
 			message := event.Response.Error.Message
 			if message == "" {
 				message = fmt.Sprintf("response failed with status %q", event.Response.Status)
 			}
-			return nil, &APIError{
-				Provider: "Codex",
-				Code:     string(event.Response.Error.Code),
-				Message:  message,
-				Body:     string(truncateErrorResponseBody([]byte(event.Response.Error.RawJSON()))),
-				cause:    errors.New(message),
-			}
+			apiErr := newAPIError("Codex", nil, []byte(event.Response.Error.RawJSON()), errors.New(message))
+			apiErr.Code, apiErr.Message = string(event.Response.Error.Code), message
+			return nil, apiErr
 		}
 	}
 	if err := stream.Err(); err != nil {
 		logger.ErrorCF("provider.codex", "Codex API call failed", codexAPIErrorFields(err, model, resolvedModel, len(messages), len(tools), accountID != ""))
-		return nil, wrapCodexAPIError(err)
+		var sdkErr *openai.Error
+		if errors.As(err, &sdkErr) {
+			return nil, newAPIError("Codex", sdkErr.Response, []byte(sdkErr.RawJSON()), err)
+		}
+		return nil, fmt.Errorf("codex API call: %w", err)
 	}
 	if finalResp == nil {
 		return nil, fmt.Errorf("codex API call: stream ended without a response payload")
@@ -181,14 +177,6 @@ func (p *CodexProvider) Chat(ctx context.Context, messages []Message, tools []To
 		return parsed, fmt.Errorf("codex response incomplete (truncated; %d partial chars)", partialChars)
 	}
 	return parsed, nil
-}
-
-func wrapCodexAPIError(err error) error {
-	var sdkErr *openai.Error
-	if !errors.As(err, &sdkErr) {
-		return fmt.Errorf("codex API call: %w", err)
-	}
-	return newAPIError("Codex", sdkErr.Response, []byte(sdkErr.RawJSON()), err)
 }
 
 // resolveCodexModel maps a requested model onto one the Codex backend accepts.

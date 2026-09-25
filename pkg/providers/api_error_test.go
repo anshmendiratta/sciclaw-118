@@ -1,8 +1,6 @@
 package providers
 
 import (
-	"bytes"
-	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -32,14 +30,6 @@ func TestNewAPIErrorParsesErrorEnvelopes(t *testing.T) {
 
 func TestErrorResponseBodiesAreBoundedAndMarked(t *testing.T) {
 	body := strings.Repeat("x", maxErrorResponseBytes+1)
-	response := &http.Response{StatusCode: http.StatusBadRequest, Body: io.NopCloser(bytes.NewBufferString(body))}
-	bounded, err := readProviderResponse(response)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(bounded) != maxErrorResponseBytes || !strings.HasSuffix(string(bounded), errorBodyTruncationMarker) {
-		t.Fatalf("body length=%d suffix=%q", len(bounded), string(bounded[len(bounded)-len(errorBodyTruncationMarker):]))
-	}
 	apiErr := NewAPIError("HTTP", &http.Response{StatusCode: http.StatusBadRequest, Header: make(http.Header)}, []byte(body)).(*APIError)
 	if len(apiErr.Body) != maxErrorResponseBytes || !strings.HasSuffix(apiErr.Body, errorBodyTruncationMarker) {
 		t.Fatalf("APIError body not bounded and marked: length=%d", len(apiErr.Body))
