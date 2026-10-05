@@ -2,7 +2,6 @@
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { readFile } from "node:fs/promises";
 
 export function parseCallArguments(argv: string[]): { tool: string; arguments: Record<string, unknown> } {
   if (argv.length !== 3 || argv[0] !== "call") {
@@ -28,15 +27,10 @@ export async function callTool(
   env: Record<string, string | undefined> = process.env,
 ) {
   const serverUrl = env.SCICLAW_MCP_URL;
-  const apiKey = env.SCICLAW_MCP_API_KEY ??
-    (env.SCICLAW_MCP_API_KEY_FILE ? (await readFile(env.SCICLAW_MCP_API_KEY_FILE, "utf8")).trim() : undefined);
   if (!serverUrl) throw new Error("SCICLAW_MCP_URL is not set");
-  if (!apiKey) throw new Error("SCICLAW_MCP_API_KEY is not set");
 
   const client = new Client({ name: "mcp-server-cli", version: "0.1.0" });
-  const transport = new StreamableHTTPClientTransport(new URL(serverUrl), {
-    requestInit: { headers: { Authorization: `Bearer ${apiKey}` } },
-  });
+  const transport = new StreamableHTTPClientTransport(new URL(serverUrl));
 
   try {
     await client.connect(transport);

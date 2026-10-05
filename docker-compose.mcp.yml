@@ -1,19 +1,16 @@
 services:
   sciclaw-mcp-server:
     build:
-      context: ./tools/sciclaw-mcp-server
+      context: ./tools/gitea-mcp
     restart: unless-stopped
     env_file: ${SCICLAW_MCP_SERVER_ENV_PATH:?set SCICLAW_MCP_SERVER_ENV_PATH}
     environment:
-      GITEA_API_BASE_URL: ${GITEA_API_BASE_URL:?set GITEA_API_BASE_URL}
-      NODE_EXTRA_CA_CERTS: /certs/CCHMCRootCA.pem
+      MCP_MODE: http
+      GITEA_HOST: ${GITEA_HOST:?set GITEA_HOST}
+      GITEA_TOOLS: create_organization,issue_read,project_read,project_write,get_file_contents,create_or_update_file,pull_request_write
+      SSL_CERT_FILE: /certs/CCHMCRootCA.pem
     volumes:
       - ${SCICLAW_MCP_CA_PATH:?set SCICLAW_MCP_CA_PATH}:/certs/CCHMCRootCA.pem:ro
-    healthcheck:
-      test: ["CMD", "bun", "-e", "const r = await fetch('http://127.0.0.1:3000/health'); if (!r.ok) process.exit(1)"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
 
   sciclaw-gateway:
     depends_on:
@@ -21,7 +18,5 @@ services:
         condition: service_healthy
     volumes:
       - ${SCICLAW_CONFIG_PATH:?set SCICLAW_CONFIG_PATH}:/root/.picoclaw/config.json:ro
-      - ${SCICLAW_MCP_API_KEY_SECRET_PATH:?set SCICLAW_MCP_API_KEY_SECRET_PATH}:/run/secrets/sciclaw_mcp_api_key:ro
     environment:
-      SCICLAW_MCP_URL: http://sciclaw-mcp-server:3000/mcp
-      SCICLAW_MCP_API_KEY_FILE: /run/secrets/sciclaw_mcp_api_key
+      SCICLAW_MCP_URL: http://sciclaw-mcp-server:8080/mcp

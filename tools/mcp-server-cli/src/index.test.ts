@@ -17,12 +17,9 @@ test("rejects invalid arguments", () => {
   expect(() => parseCallArguments(["call", "example", "nope"])).toThrow("valid JSON");
 });
 
-test("calls an authenticated Streamable HTTP MCP tool", async () => {
+test("calls a Streamable HTTP MCP tool", async () => {
   const httpServer = createServer(async (request, response) => {
-    if (request.headers.authorization !== "Bearer test-key") {
-      response.writeHead(401).end();
-      return;
-    }
+    expect(request.headers.authorization).toBeUndefined();
 
     const mcpServer = new McpServer({ name: "test-server", version: "1.0.0" });
     mcpServer.registerTool(
@@ -41,7 +38,7 @@ test("calls an authenticated Streamable HTTP MCP tool", async () => {
     if (!address || typeof address === "string") throw new Error("test server has no TCP address");
     const result = await callTool("echo", { value: "connected" }, {
       SCICLAW_MCP_URL: `http://127.0.0.1:${address.port}/mcp`,
-      SCICLAW_MCP_API_KEY: "test-key",
+      SCICLAW_MCP_API_KEY: "legacy-key",
     });
     expect(result.content).toEqual([{ type: "text", text: "connected" }]);
   } finally {

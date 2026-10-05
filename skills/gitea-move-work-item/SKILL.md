@@ -1,20 +1,20 @@
 ---
 name: gitea-move-work-item
-description: Move an AtomicQMS Gitea work item between named organization-project phases through the sciclaw-mcp-server MCP tool. Use for requests to move, advance, return, or change the phase of a Gitea issue.
+description: Move an AtomicQMS Gitea work item between named organization-project phases through the official Gitea MCP server. Use for requests to move, advance, return, or change the phase of a Gitea issue.
 ---
 
 # Move Gitea Work Item
 
-Use the `exec` tool to run `mcp-server-cli`, which calls the remote MCP tool `move_work_item_phase`. The CLI reads `SCICLAW_MCP_URL` and `SCICLAW_MCP_API_KEY` from its environment; never include either value in a command, chat message, or log.
+Use the `exec` tool to run `mcp-server-cli`, which calls the configured official Gitea MCP server. The CLI reads `SCICLAW_MCP_URL`; never include credentials in a command, chat message, or log.
 
-If the executable is unavailable or reports missing configuration, explain that the operation cannot run and request that an administrator install the CLI and configure both environment variables in the SciClaw service. Do not attempt an unauthenticated request.
+If the executable is unavailable or reports missing configuration, explain that the operation cannot run and request that an administrator install the CLI and configure `SCICLAW_MCP_URL` in the SciClaw service.
 
 Collect `organization`, `projectId`, `owner`, `repository`, `issueNumber`, `fromPhase`, and `toPhase`. Require explicit confirmation of the issue and source-to-destination phase immediately before the call. Ensure the phase names differ.
 
-Serialize the arguments as compact JSON, shell-quote them as one argument, and execute:
+Call `issue_read` with `method: "get"`, `owner`, `repo`, and `issue_number`; retain its internal `id`. Call `project_read` with `method: "list_columns"`, `org: organization`, and `project_id: projectId`; identify the exact source and destination column IDs by title. Call `project_read` again with `method: "list_column_issues"` and the source `column_id`; fail if the internal issue ID is absent. Finally move it with:
 
 ```sh
-mcp-server-cli call move_work_item_phase '<json-arguments>'
+mcp-server-cli call project_write '{"method":"add_issue","org":"<organization>","project_id":<project-id>,"column_id":<destination-column-id>,"issue_id":<issue-id>}'
 ```
 
-Report the tool result. Do not claim a move succeeded when the tool fails.
+Report the issue, source phase, and destination phase. Do not claim a move succeeded when any call fails.
